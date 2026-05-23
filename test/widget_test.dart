@@ -5,8 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:project/app.dart';
 
 void main() {
-  testWidgets('App muestra pantalla de login', (WidgetTester tester) async {
+  testWidgets('App muestra la pantalla de login', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
-    expect(find.text('Inicia sesión'), findsOneWidget);
+    expect(find.text('Hola de nuevo'), findsOneWidget);
+    expect(find.text('Entrar'), findsOneWidget);
   });
 }
