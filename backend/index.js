@@ -240,6 +240,25 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
+// Listado de categorías desde MySQL.
+// Espera una tabla `categories` con: id, name, icon_name
+app.get('/api/categories', async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    try {
+      const [rows] = await conn.execute(
+        'SELECT id, name, icon_name FROM categories ORDER BY name',
+      );
+      return res.json(rows);
+    } finally {
+      conn.release();
+    }
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
 // Arranque del servidor.
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
