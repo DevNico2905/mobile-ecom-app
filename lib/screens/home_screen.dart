@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/app_theme.dart';
-import '../data/mock_products.dart';
 import '../models/product.dart';
 import '../providers/login_provider.dart';
+import '../services/catalog_service.dart';
 import '../widgets/theme_toggle_button.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,10 +16,22 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
+
+  List<Product> _products = [];
+  List<Category> _categories = [];
+  bool _loading = true;
+  String? _error;
+
   String _selectedCategoryId = 'all';
   String _query = '';
   int _cartCount = 0;
   int _navIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   @override
   void dispose() {
@@ -27,9 +39,41 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  /// Carga productos y categorías desde el backend.
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final products = await CatalogService.fetchProducts();
+      final categories = await CatalogService.fetchCategories();
+      if (!mounted) return;
+      setState(() {
+        _products = products;
+        _categories = categories;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error =
+            'No se pudo cargar el catálogo. Revisa que el backend esté '
+            'encendido en http://localhost:3000.';
+        _loading = false;
+      });
+    }
+  }
+
+  /// Categorías para los chips: "Todos" (filtro de UI) + las de la BD.
+  List<Category> get _categoryChips => [
+        const Category(id: 'all', name: 'Todos', icon: Icons.apps),
+        ..._categories,
+      ];
+
   List<Product> get _filteredProducts {
     final query = _query.trim().toLowerCase();
-    return mockProducts.where((p) {
+    return _products.where((p) {
       final matchesCategory =
           _selectedCategoryId == 'all' || p.categoryId == _selectedCategoryId;
       final matchesQuery =
@@ -128,8 +172,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<LoginProvider>();
     final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    final products = _filteredProducts;
     final username =
         provider.username.isNotEmpty ? provider.username : 'Usuario';
 
@@ -157,7 +199,57 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: CustomScrollView(
+      body: _buildBody(username),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _navIndex,
+        onDestinationSelected: (index) => setState(() => _navIndex = index),
+        destinations: [
+          const NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.search_outlined),
+            selectedIcon: Icon(Icons.search),
+            label: 'Buscar',
+          ),
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: _cartCount > 0,
+              label: Text('$_cartCount'),
+              child: const Icon(Icons.shopping_bag_outlined),
+            ),
+            selectedIcon: const Icon(Icons.shopping_bag),
+            label: 'Carrito',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Perfil',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(String username) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return _CatalogError(message: _error!, onRetry: _load);
+    }
+
+    final products = _filteredProducts;
+    final chips = _categoryChips;
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
@@ -201,10 +293,10 @@ class _HomeScreenState extends State<HomeScreen> {
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 scrollDirection: Axis.horizontal,
-                itemCount: categories.length,
+                itemCount: chips.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
-                  final category = categories[index];
+                  final category = chips[index];
                   final selected = _selectedCategoryId == category.id;
                   return FilterChip(
                     selected: selected,
@@ -253,36 +345,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
             ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _navIndex,
-        onDestinationSelected: (index) => setState(() => _navIndex = index),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.search_outlined),
-            selectedIcon: Icon(Icons.search),
-            label: 'Buscar',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: _cartCount > 0,
-              label: Text('$_cartCount'),
-              child: const Icon(Icons.shopping_bag_outlined),
-            ),
-            selectedIcon: const Icon(Icons.shopping_bag),
-            label: 'Carrito',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
         ],
       ),
     );
@@ -494,6 +556,48 @@ class _EmptyState extends StatelessWidget {
             style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Estado de error de carga del catálogo, con botón para reintentar.
+class _CatalogError extends StatelessWidget {
+  const _CatalogError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off, size: 56, color: scheme.onSurfaceVariant),
+            const SizedBox(height: 16),
+            Text(
+              'No se pudo cargar el catálogo',
+              style: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 20),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
       ),
     );
   }
