@@ -1,32 +1,32 @@
 -- ============================================================
--- Catálogo tecnológico para ecommerceflutter
--- 5 categorías × 10 productos = 50 productos.
+-- Catalogo tecnologico para ecommerceflutter
+-- 5 categorias x 10 productos = 50 productos.
 --
--- Ejecuta este script en MySQL Workbench sobre la base `ecommerceflutter`
--- DESPUÉS de haber creado las tablas con `schema.sql`.
+-- COMO EJECUTARLO (importante): corre el archivo COMO SCRIPT, para que cada
+-- sentencia se envie por separado. Si lo ejecutas como "una sola consulta",
+-- el servidor da error 1064 al encontrar el segundo ';'.
+--   * DBeaver:          Alt+X  (Execute SQL Script)   -- NO uses Ctrl+Enter
+--   * MySQL Workbench:  boton del rayo "Execute" (Ctrl+Shift+Enter)
+--   * Terminal:         mysql -u root -p ecommerceflutter < seed_tech_catalog.sql
 --
--- ⚠️  ATENCIÓN: este script REEMPLAZA el catálogo de demostración.
---     Vacía las tablas `products` y `categories` (TRUNCATE) y vuelve a
---     insertarlas desde cero. NO afecta a la tabla `users`.
+-- ATENCION: reemplaza el catalogo (borra products y categories).
+--           NO afecta la tabla users.
 --
--- La columna `icon_name` guarda el nombre de un icono Material; la app lo
--- traduce a un `IconData` en `lib/core/product_icons.dart`. Si añades un
--- icon_name nuevo, agrégalo también a ese mapa (si no, se usa un icono por
--- defecto).
+-- icon_name: nombre de un icono Material; la app lo traduce en
+-- lib/core/product_icons.dart (si agregas uno nuevo, agregalo tambien alli).
 -- ============================================================
 
 USE ecommerceflutter;
 
 -- ------------------------------------------------------------
--- Reinicio del catálogo (no toca usuarios)
+-- Reinicio del catalogo (orden seguro para la FK: primero hijos)
 -- ------------------------------------------------------------
-SET FOREIGN_KEY_CHECKS = 0;
-TRUNCATE TABLE products;
-TRUNCATE TABLE categories;
-SET FOREIGN_KEY_CHECKS = 1;
+DELETE FROM products;
+DELETE FROM categories;
+ALTER TABLE products AUTO_INCREMENT = 1;
 
 -- ------------------------------------------------------------
--- Categorías (5)
+-- Categorias (5)
 -- ------------------------------------------------------------
 INSERT INTO categories (id, name, icon_name) VALUES
 ('smartphones', 'Smartphones',  'smartphone'),
@@ -36,7 +36,7 @@ INSERT INTO categories (id, name, icon_name) VALUES
 ('wearables',   'Wearables',    'watch');
 
 -- ------------------------------------------------------------
--- Productos (10 por categoría)
+-- Productos (10 por categoria)
 -- ------------------------------------------------------------
 
 -- Smartphones
